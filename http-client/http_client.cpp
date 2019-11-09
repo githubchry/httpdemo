@@ -29,13 +29,17 @@ size_t deal_response(void *ptr, size_t n, size_t m, void *arg)
 
     response_data_t *response_data = (response_data_t*)arg;
 
+    if(response_data->data_len + count > RESPONSE_DATA_LEN)
+    {
+        printf("response data is too big!\n");
+        return count;
+    }
+
     memcpy(response_data->data+response_data->data_len, ptr, count);
 
     response_data->data_len += count;
 
-    printf("response_data %d\n", response_data->data_len);
-
-    return response_data->data_len;
+    return count;
 }
 
 #define POSTDATA "{\"username\":\"gailun\",\"password\":\"123123\",\"driver\":\"yes\"}"
