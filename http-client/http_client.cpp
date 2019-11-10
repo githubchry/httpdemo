@@ -100,6 +100,12 @@ int main()
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);      //整个通信周期最长时间，包括了下面的连接超时
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2);  // 设置连接超时
 
+    //curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1l);  // 使能TCP长连接模式
+    //curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);  // 长连接模式下：最长120秒空闲（CURLOPT_TIMEOUT时间一定要大于这个时间，或者直接设成0，否则可能还没受到应答就超时了）
+    //curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);  // 长连接模式下：每个60一次心跳
+
+
+
     //2 开启post请求开关
     curl_easy_setopt(curl, CURLOPT_POST, 1);
 
