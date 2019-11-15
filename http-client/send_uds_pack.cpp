@@ -1,14 +1,13 @@
 #include "ryprint.h"
 #include "rymacros.h"
-#include "uds_pack_handle.h"
+#include "http_request_module.h"
 
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <errno.h>
 
-#define UDS_DGRAM_SERVER_PATH  "/home/chry/code/github/IPCDemo/build/uds-dgram-server"
-#define UDS_DGRAM_CLIENT_PATH  "/home/chry/code/github/IPCDemo/build/uds-dgram-client"
+#define UDS_DGRAM_CLIENT_PATH  "uds-dgram-client"
 
 #define BIND_CLIENT_ADDR  1//不给套接字命名 服务器将无法获取客户端的地址信息
 

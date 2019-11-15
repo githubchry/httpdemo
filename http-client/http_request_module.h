@@ -1,3 +1,7 @@
+#pragma once
+
+#define UDS_DGRAM_SERVER_PATH  "/home/chry/codes/httpdemo/build/uds-dgram-server"
+#define UDS_DGRAM_BUFFER_SIZE  1024
 
 typedef enum _http_msg_type_t 
 {
@@ -35,7 +39,4 @@ typedef struct _http_request_api_t
 	char api_suffix[64];
 } http_request_api_t;
 
-#define SERVER_ADDR    "127.0.0.1"
-#define SERVER_PORT    "7777"
-
-#define UDS_DGRAM_BUFFER_SIZE  1024
+int http_request_module_init();
