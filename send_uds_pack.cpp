@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
         close(sockfd);
         exit(-3);
     }
+    ryDbg("uds bind %s sucess!\n", client_addr.sun_path);
 #endif
     struct sockaddr_un server_addr = { 0 };
     server_addr.sun_family = AF_UNIX;
