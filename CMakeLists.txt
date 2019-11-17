@@ -19,7 +19,7 @@ target_link_libraries (simple_client curl cjson)
 # aux_source_directory(dir DIR_SRCS)查找目录下的所有源文件 并将名称保存到 DIR_SRCS 变量
 aux_source_directory(http-client    HTTP_CLIENT_DIR_SRCS)
 add_executable (http_client        ${HTTP_CLIENT_DIR_SRCS})
-target_link_libraries (http_client curl)
+target_link_libraries (http_client curl event cjson)
            
 include_directories(http-client)
 add_executable(send_uds_pack    send_uds_pack.cpp)

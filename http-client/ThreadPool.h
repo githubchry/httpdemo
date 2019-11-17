@@ -1,7 +1,9 @@
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
- 
+
+//https://blog.csdn.net/MOU_IT/article/details/88712090 
 //from https://github.com/progschj/ThreadPool
+
 #include <vector>
 #include <queue>
 #include <memory>
