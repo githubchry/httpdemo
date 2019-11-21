@@ -19,8 +19,6 @@
 #define SERVER_ADDR    "127.0.0.1"
 #define SERVER_PORT    "7777"
 
-static void uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, struct sockaddr_un *_client_addr);
-
 static char http_request_addr[REQUEST_ADDR_MAX_NUM][64] = 
 {
     "http://10.6.1.39:8888",
@@ -174,7 +172,7 @@ void HttpClient::stop()
     ryDbg("\n");
 }
 
-static void uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, struct sockaddr_un *_client_addr)
+void HttpClient::uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, struct sockaddr_un *_client_addr)
 {
     struct sockaddr_un client_addr;
     memcpy(&client_addr, _client_addr, sizeof(struct sockaddr_un));

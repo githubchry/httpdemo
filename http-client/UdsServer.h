@@ -7,8 +7,6 @@
 
 typedef void (*udsPackHandleFunc)(char *pack_ptr, int length, struct sockaddr_un *client_addr);
     
-static void uds_dgram_pack_handle_func(char * _uds_pack_ptr, size_t length, struct sockaddr_un *_client_addr);
-
 class UdsServer
 {
 private:
