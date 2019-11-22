@@ -11,6 +11,8 @@ private:
     struct evhttp *httpd = nullptr;
     struct event_base *evbase = nullptr;
 
+    static void generic_cb(struct evhttp_request *req, void *arg);
+
 public:
     HttpServer(const char *addr, int port);
     ~HttpServer();

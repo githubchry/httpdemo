@@ -10,14 +10,6 @@
 
 #include <cjson/cJSON.h>
 
-
-static void generic_cb(struct evhttp_request* req, void* arg)
-{
-    char s[128] = "This is the generic buf";
-    evbuffer_add(req->output_buffer, s, strlen(s));
-    evhttp_send_reply(req, 200, "OK", NULL);
-}
-
 HttpServer::HttpServer(const char *addr, int port)
 {
     evbase = event_base_new();
@@ -74,4 +66,21 @@ void HttpServer::stop()
         http_listen_thread->join();
         http_listen_thread = nullptr;
     }
+}
+
+void HttpServer::generic_cb(struct evhttp_request *req, void *arg)
+{
+    //获取客户端请求的URI(使用evhttp_request_uri或直接req->uri)
+    const char *uri = evhttp_request_uri(req);
+    ryDbg("recv request %s\n", uri);
+
+    //获取POST方法的数据
+    size_t post_size = EVBUFFER_LENGTH(req->input_buffer);
+    char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);
+
+    printf("[%s]\n len =%ld \n", post_data, post_size);
+
+    char s[128] = "This is the generic buf";
+    evbuffer_add(req->output_buffer, s, strlen(s));
+    evhttp_send_reply(req, 200, "OK", NULL);
 }
