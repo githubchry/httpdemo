@@ -84,3 +84,13 @@ void HttpServer::generic_cb(struct evhttp_request *req, void *arg)
     evbuffer_add(req->output_buffer, s, strlen(s));
     evhttp_send_reply(req, 200, "OK", NULL);
 }
+
+/**
+ *  0 on success, -1 if the callback existed already, -2 on failure
+*/
+int HttpServer::addRequestHandle(const char *path, requestHandleFunc cb, void *cb_arg)
+{
+    assert_param_return(nullptr == http_listen_thread, -2);
+
+    return evhttp_set_cb(httpd, path, cb, cb_arg);
+}

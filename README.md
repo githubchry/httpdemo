@@ -18,6 +18,7 @@ export PKG_CONFIG_PATH=/home/chry/codes/new-root/lib
 make
 make install
 ```
+<https://www.cnblogs.com/moodlxs/archive/2012/10/15/2724318.html>
 
 ## libevent
 

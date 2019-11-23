@@ -25,42 +25,49 @@ static char http_request_addr[REQUEST_ADDR_MAX_NUM][64] =
     "http://" SERVER_ADDR ":" SERVER_PORT ,
 };
 
-static http_request_api_t http_request_api_table[] = 
-{
-    
-    { ___test,      "/login" },
+static http_request_api_t http_request_api_table[] =
+    {
 
-    //以下协议的发送方是平台系统，接收方是设备
-    { _http_msg_type_get_access_token,      "/ATMAlarm/GetAccessToken" },
-    { _http_msg_type_release_token,         "/ATMAlarm/ReleaseToken" },
-    { _http_msg_type_set_center_url,        "/ATMAlarm/SetCenterURL" },
-    { _http_msg_type_get_device_time,       "/ATMAlarm/GetDeviceTime" },
-    { _http_msg_type_set_device_time,       "/ATMAlarm/SetDeviceTime" },
-    { _http_msg_type_restart_device,        "/ATMAlarm/RestartDevice" },
-    { _http_msg_type_arm_chn,               "/ATMAlarm/ArmChn"},
-    { _http_msg_type_dis_arm_chn,           "/ATMAlarm/DisArmChn" },
+        evhttp_send_reply_chunk_with_cb{___test_JSON, "/login"},
+        {___test_FILE_SMALL, "/1.jpg"},
+        {___test_FILE_BIG, "/chrome.mp4"},
 
-    //以下协议的发送方是设备，接收方是平台系统
-    { _http_msg_type_statu_monitor_url,     "/ATMAlarm/statuMonitorURL" },
-    { _http_msg_type_record_monitor_url,    "/ATMAlarm/recordMonitorURL" },
-    { _http_msg_type_get_device_all_statu,  "/ATMAlarm/GetAccessToken" },
-    
+        //以下协议的发送方是平台系统，接收方是设备
+        {_http_msg_type_get_access_token, "/ATMAlarm/GetAccessToken"},
+        {_http_msg_type_release_token, "/ATMAlarm/ReleaseToken"},
+        {_http_msg_type_set_center_url, "/ATMAlarm/SetCenterURL"},
+        {_http_msg_type_get_device_time, "/ATMAlarm/GetDeviceTime"},
+        {_http_msg_type_set_device_time, "/ATMAlarm/SetDeviceTime"},
+        {_http_msg_type_restart_device, "/ATMAlarm/RestartDevice"},
+        {_http_msg_type_arm_chn, "/ATMAlarm/ArmChn"},
+        {_http_msg_type_dis_arm_chn, "/ATMAlarm/DisArmChn"},
+
+        //以下协议的发送方是设备，接收方是平台系统
+        {_http_msg_type_statu_monitor_url, "/ATMAlarm/statuMonitorURL"},
+        {_http_msg_type_record_monitor_url, "/ATMAlarm/recordMonitorURL"},
+        {_http_msg_type_get_device_all_statu, "/ATMAlarm/GetAccessToken"},
+
 };
 //用来接收服务器一个buffer
 typedef struct response_data
 {
     char data[RESPONSE_DATA_LEN];
     int data_len;
+    CURL *curl;
 }response_data_t;
 
 //处理从服务器返回的数据，将数据拷贝到arg中
 static size_t deal_response(void *ptr, size_t n, size_t m, void *arg)
 {
-    int count = m*n;
-
+    int count = m * n;
     response_data_t *response_data = (response_data_t*)arg;
 
-    if(response_data->data_len + count > RESPONSE_DATA_LEN)
+    char *contentType = NULL;
+    CURLcode code = curl_easy_getinfo(response_data->curl, CURLINFO_CONTENT_TYPE, &contentType);
+    if ((CURLE_OK == code) && contentType)
+        ryDbg("contentType:%s\n", contentType);
+
+    if (response_data->data_len + count > RESPONSE_DATA_LEN)
     {
         printf("response data is too big!\n");
         return count;
@@ -99,7 +106,8 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, deal_response);
 
     //5 给上一步的设置回调函数传递一个形参 用来存放从服务器返回的数据
-    response_data_t responseData; 
+    response_data_t responseData;
+    responseData.curl = curl;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
 
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2);  // 设置连接超时

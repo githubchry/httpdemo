@@ -3,6 +3,8 @@
 #include <thread>
 #include <atomic>
 
+typedef void (*requestHandleFunc)(struct evhttp_request *req, void *arg);
+
 class HttpServer
 {
 private:
@@ -16,6 +18,7 @@ private:
 public:
     HttpServer(const char *addr, int port);
     ~HttpServer();
+    int addRequestHandle(const char *path, requestHandleFunc cb, void *cb_arg);
 
     void start();
     void stop();
