@@ -3,6 +3,8 @@
 #include <thread>
 #include <atomic>
 
+// libevent源码浅析: http库 http://blog.chinaunix.net/uid-24567872-id-3425926.html
+
 typedef void (*requestHandleFunc)(struct evhttp_request *req, void *arg);
 
 class HttpServer

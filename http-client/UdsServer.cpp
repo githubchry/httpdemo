@@ -69,8 +69,8 @@ void UdsServer::start(udsMsgHandleFunc cb_func)
         socket_msg.msg_iovlen = 1;
         socket_msg.msg_control = ctrl_data;
         socket_msg.msg_controllen = sizeof(ctrl_data);
-
-        while (run_flag)
+        
+         while (run_flag)
         {
             sm.lock();
             //大写加粗标红：每次recvmsg之后addr_size都会被改变为实际的sockaddr大小 所以必须重置一下

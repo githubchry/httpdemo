@@ -28,8 +28,9 @@ static http_request_api_t http_request_api_table[] =
     {
 
         {___test_JSON, "/login"},
-        {___test_FILE_SMALL, "/1.jpg"},
-        {___test_FILE_BIG, "/chrome.mp4"},
+        {___test_DOWNLOAD_FILE_SMALL, "/1.jpg"},
+        {___test_DOWNLOAD_FILE_BIG, "/chrome.mp4"},
+        {___test_UPLOAD_FILE_SMALL, "/upload"},
 
         //以下协议的发送方是平台系统，接收方是设备
         {_http_msg_type_get_access_token, "/ATMAlarm/GetAccessToken"},
@@ -93,7 +94,7 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
 
     //查看curl内部打印开关
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     //2 开启post请求开关
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -234,6 +235,7 @@ void HttpClient::uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int le
     ryDbg("post request [%s]!\n", udspack_header_ptr->m_data);
 
     post_http_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
+    //put_file_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
 
     free(uds_pack_ptr);
 }

@@ -8,8 +8,9 @@ typedef enum _http_msg_type_t
 {
     _http_msg_type_st,
     ___test_JSON,
-    ___test_FILE_SMALL,
-    ___test_FILE_BIG,
+    ___test_DOWNLOAD_FILE_SMALL,
+    ___test_UPLOAD_FILE_SMALL,
+    ___test_DOWNLOAD_FILE_BIG,
 
     //以下协议的发送方是平台系统，接收方是设备
     _http_msg_type_get_access_token, //1)用户鉴权接口

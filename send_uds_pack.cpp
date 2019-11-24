@@ -1,6 +1,5 @@
 #include "ryprint.h"
 #include "rymacros.h"
-#include "http_request_module.h"
 
 #include <sys/un.h>
 #include <sys/socket.h>
@@ -8,6 +7,11 @@
 #include <errno.h>
 #include <fcntl.h> //open
 
+typedef struct _uds_pack_header_t
+{
+    unsigned int msgtype;
+    char m_data[1];
+} uds_pack_header_t;
 
 #define BIND_CLIENT_ADDR  1//不给套接字命名 服务器将无法获取客户端的地址信息
 
@@ -17,7 +21,7 @@
 #define UDS_DGRAM_CLIENT_PATH "uds-dgram-client"
 #define TEST_FILE_PATH "testfile"
 
-#define BIND_CLIENT_ADDR 0 //不给套接字命名 服务器将无法获取客户端的地址信息
+#define BIND_CLIENT_ADDR 1 //不给套接字命名 服务器将无法获取客户端的地址信息
 
 int main(int argc, char *argv[])
 {
@@ -72,7 +76,7 @@ int main(int argc, char *argv[])
     iov[0].iov_base = sendbuf;
     iov[0].iov_len = sizeof(sendbuf);
 
-    ryDbg(" iov[0].iov_len [%d]!\n", iov[0].iov_len);
+    ryDbg(" iov[0].iov_len [%ld]!\n", iov[0].iov_len);
     //该buf用于存放辅助数据 buf大小根据CMSG_SPACE宏计算出来
     char ctrl_data[CMSG_SPACE(sizeof(filefd))];
 

@@ -84,7 +84,7 @@ void login_handler(struct evhttp_request *req, void *arg)
     free(response_str);
 }
 
-void small_file_handler(struct evhttp_request *req, void *arg)
+void send_small_file_handler(struct evhttp_request *req, void *arg)
 {
     /* 响应给客户端 */
 
@@ -117,6 +117,7 @@ void small_file_handler(struct evhttp_request *req, void *arg)
     evbuffer_free(buf);
 }
 /*
+// https://www.jianshu.com/p/5111cfb4b137
 //	video/mpeg4
 void big_file_handler(struct evhttp_request *req, void *arg)
 {
@@ -144,6 +145,32 @@ void big_file_handler(struct evhttp_request *req, void *arg)
     evbuffer_free(buf);
 }
 */
+
+void recv_file_handler(struct evhttp_request *req, void *arg)
+{
+    // 解析http协议头 从里面获取文件的名称和大小  然后保存到本地
+    struct evkeyvalq *headers;
+    struct evkeyval *header;
+
+    headers = evhttp_request_get_input_headers(req);
+    for (header = headers->tqh_first; header;
+         header = header->next.tqe_next)
+    {
+        ryDbg("  %s: %s\n", header->key, header->value);
+    }
+
+    char request_data[4096] = {0};
+
+    // 响应给客户端
+
+    //HTTP header
+    evhttp_add_header(req->output_headers, "Server", __FILE__);
+    evhttp_add_header(req->output_headers, "Content-Type", "text/plain; charset=UTF-8");
+    evhttp_add_header(req->output_headers, "Connection", "close");
+
+    evhttp_send_reply(req, HTTP_OK, "OK", NULL);
+}
+
 int main()
 {
     //http_request_module_init();
@@ -152,8 +179,9 @@ int main()
     HttpServer bbb("0.0.0.0", 7777);
 
     bbb.addRequestHandle("/login", login_handler, nullptr);
-    bbb.addRequestHandle("/1.jpg", small_file_handler, nullptr);
+    bbb.addRequestHandle("/1.jpg", send_small_file_handler, nullptr);
     //bbb.addRequestHandle("/chrome.mp4", big_file_handler, nullptr);
+    bbb.addRequestHandle("/upload", recv_file_handler, nullptr);
 
     aaa.start();
     bbb.start();
