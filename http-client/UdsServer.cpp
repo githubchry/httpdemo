@@ -23,7 +23,7 @@ UdsServer::~UdsServer()
     stop();
 }
 
-void UdsServer::start(udsPackHandleFunc cb_func)
+void UdsServer::start(udsMsgHandleFunc cb_func)
 {
     assert_param(false == run_flag);
     assert_param(nullptr == uds_listen_thread);
@@ -51,23 +51,35 @@ void UdsServer::start(udsPackHandleFunc cb_func)
         }
         ryDbg("uds bind %s sucess!\n", server_addr.sun_path);
 
+        struct msghdr socket_msg;
+        struct cmsghdr *ctrl_msg;
+        struct iovec iov[1];
+        char ctrl_data[CMSG_SPACE(sizeof(sockfd))];
+
         char *recv_buf_ptr = NULL;
         recv_buf_ptr = (char *)malloc(UDS_DGRAM_BUFFER_SIZE);
         assert_param(recv_buf_ptr);
-        int addr_size = -1;
         struct sockaddr_un client_addr = { 0 };
+
+        socket_msg.msg_name = &client_addr;
+        socket_msg.msg_namelen = sizeof(struct sockaddr_un);
+        iov[0].iov_base = recv_buf_ptr;
+        iov[0].iov_len = UDS_DGRAM_BUFFER_SIZE;
+        socket_msg.msg_iov = iov;
+        socket_msg.msg_iovlen = 1;
+        socket_msg.msg_control = ctrl_data;
+        socket_msg.msg_controllen = sizeof(ctrl_data);
 
         while (run_flag)
         {
-            addr_size = sizeof(struct sockaddr_un);
+            sm.lock();
+            //大写加粗标红：每次recvmsg之后addr_size都会被改变为实际的sockaddr大小 所以必须重置一下
+            socket_msg.msg_namelen = sizeof(struct sockaddr_un);
 
-            int ret = recvfrom(sockfd, recv_buf_ptr, UDS_DGRAM_BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, (socklen_t*)&addr_size);
-
+            ret = recvmsg(sockfd, &socket_msg, 0);
             IF_TRUE_DO(ret <= 0, continue);
 
-            std::thread(uds_handle_cb, recv_buf_ptr, ret, &client_addr).detach();;
-            
-            usleep(1000*5); //稍作延时 确保子线程里面有时间把传进去的buf拷贝下来
+            std::thread(uds_handle_cb, &socket_msg, ret, &sm).detach();
         }
         ryDbg("uds listen thread end.\n");
     });

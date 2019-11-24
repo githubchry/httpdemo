@@ -45,7 +45,8 @@ class HttpClient
 {
 private:
     UdsServer *udsServer = nullptr;
-    static void uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, struct sockaddr_un *_client_addr);
+    static void uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int length, spin_mutex *sm_ptr);
+
 public:
     HttpClient(/* args */);
     void start();

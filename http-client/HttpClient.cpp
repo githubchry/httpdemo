@@ -5,8 +5,7 @@
 
 #include <curl/curl.h>
 #include <sys/un.h>
-
-
+#include <sys/socket.h>
 
 #define THREAD_POOL_SIZE        4
 #define REQUEST_ADDR_MAX_NUM    5
@@ -28,7 +27,7 @@ static char http_request_addr[REQUEST_ADDR_MAX_NUM][64] =
 static http_request_api_t http_request_api_table[] =
     {
 
-        evhttp_send_reply_chunk_with_cb{___test_JSON, "/login"},
+        {___test_JSON, "/login"},
         {___test_FILE_SMALL, "/1.jpg"},
         {___test_FILE_BIG, "/chrome.mp4"},
 
@@ -53,6 +52,7 @@ typedef struct response_data
 {
     char data[RESPONSE_DATA_LEN];
     int data_len;
+    int fd;
     CURL *curl;
 }response_data_t;
 
@@ -62,25 +62,27 @@ static size_t deal_response(void *ptr, size_t n, size_t m, void *arg)
     int count = m * n;
     response_data_t *response_data = (response_data_t*)arg;
 
-    char *contentType = NULL;
-    CURLcode code = curl_easy_getinfo(response_data->curl, CURLINFO_CONTENT_TYPE, &contentType);
-    if ((CURLE_OK == code) && contentType)
-        ryDbg("contentType:%s\n", contentType);
-
-    if (response_data->data_len + count > RESPONSE_DATA_LEN)
+    if (response_data->fd >= 0)
     {
-        printf("response data is too big!\n");
-        return count;
+        write(response_data->fd, ptr, count);
     }
+    else
+    {
+        if (response_data->data_len + count > RESPONSE_DATA_LEN)
+        {
+            printf("response data is too big!\n");
+            return count;
+        }
 
-    memcpy(response_data->data+response_data->data_len, ptr, count);
+        memcpy(response_data->data + response_data->data_len, ptr, count);
 
-    response_data->data_len += count;
-
+        response_data->data_len += count;
+    }
+    
     return count;
 }
 
-static void post_http_request(const char *api_suffix, const char *request_data, struct sockaddr_un *client_addr)
+static void post_http_request(const char *api_suffix, const char *request_data, struct sockaddr_un *client_addr, int filefd)
 {
     //初始化curl句柄
     CURL* curl = curl_easy_init();
@@ -108,12 +110,14 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
     //5 给上一步的设置回调函数传递一个形参 用来存放从服务器返回的数据
     response_data_t responseData;
     responseData.curl = curl;
+    responseData.fd = filefd;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
 
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2);  // 设置连接超时
     
     char http_request_url[128];
 
+    //警惕： 存在业务冲突 如果要向多个地址发出request 那就有多个response 以哪个为准？一个fd被写入多次怎么办？
     for (size_t i = 0; i < REQUEST_ADDR_MAX_NUM; i++)
     {
         IF_FALSE_DO(strlen(http_request_addr[i]) > 0, continue);
@@ -136,18 +140,23 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
             continue;
         }
 
+        IF_TRUE_DO(strlen(client_addr->sun_path) <= 0, continue);
 
-        if(responseData.data_len > 0 && strlen(client_addr->sun_path) > 0)
+        //把响应转发给 client_addr
+        int sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+        IF_TRUE_DO(sockfd < 0, continue);
+
+        if (filefd >= 0)
         {
-            ryDbg("responseData [%s]!\n", responseData.data);
-            //把响应转发给 client_addr
-            int sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-            IF_TRUE_DO(sockfd < 0, continue);
-            
-            int ret = sendto(sockfd, responseData.data, responseData.data_len, 0, (struct sockaddr *)client_addr, sizeof(struct sockaddr_un));
-            ryDbg("sendto ret %d [%s]!\n", ret,  client_addr->sun_path);
-            close(sockfd);
+            // 通知文件写入完毕
+            strcpy(responseData.data, "ojbk");
+            responseData.data_len = strlen("ojbk");
         }
+
+        ryDbg("responseData [%s]!\n", responseData.data);
+        int ret = sendto(sockfd, responseData.data, responseData.data_len, 0, (struct sockaddr *)client_addr, sizeof(struct sockaddr_un));
+        ryDbg("sendto ret %d [%s]!\n", ret, client_addr->sun_path);
+        close(sockfd);
     }
     
     curl_easy_cleanup(curl);
@@ -180,20 +189,35 @@ void HttpClient::stop()
     ryDbg("\n");
 }
 
-void HttpClient::uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, struct sockaddr_un *_client_addr)
+void HttpClient::uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int length, spin_mutex *sm_ptr)
 {
+    int file_fd = -1;
     struct sockaddr_un client_addr;
-    memcpy(&client_addr, _client_addr, sizeof(struct sockaddr_un));
 
-    assert_param(_uds_pack_ptr && length > 0);
+    memcpy(&client_addr, msg_ptr->msg_name, sizeof(struct sockaddr_un));
 
-    char *uds_pack_ptr = (char *)malloc(length);
+    //从结构体中取出描述符
+    struct cmsghdr *ctrl_msg = CMSG_FIRSTHDR(msg_ptr);
+    if (ctrl_msg != NULL 
+        && ctrl_msg->cmsg_len == CMSG_LEN(sizeof(int)) 
+        && SOL_SOCKET == ctrl_msg->cmsg_level 
+        && SCM_RIGHTS == ctrl_msg->cmsg_type)
+    {
+        file_fd = *((int *)CMSG_DATA(ctrl_msg));
+    }
+
+    assert_param(msg_ptr->msg_iov[0].iov_base && msg_ptr->msg_iov[0].iov_len > 0);
+
+    char *uds_pack_ptr = (char *)malloc(msg_ptr->msg_iov[0].iov_len);
     assert_param(uds_pack_ptr);
-    memcpy(uds_pack_ptr, _uds_pack_ptr, length);
+    ryDbg("msg_ptr->msg_iov[0].iov_len [%ld]!\n", msg_ptr->msg_iov[0].iov_len);
+    memcpy(uds_pack_ptr, msg_ptr->msg_iov[0].iov_base, msg_ptr->msg_iov[0].iov_len);
+
+    sm_ptr->unlock(); //udsserver监听数据前加锁 这里数据拷贝完毕再解锁 让udsserver处理其他事件
 
     uds_pack_header_t *udspack_header_ptr = (uds_pack_header_t *)uds_pack_ptr;
 
-    ryDbg("uds handle msg type %d from [%s]!\n", udspack_header_ptr->msgtype, client_addr.sun_path);
+    ryDbg("uds handle msg type %d from [%s], ancillary fd = [%d]!\n", udspack_header_ptr->msgtype, client_addr.sun_path, file_fd);
 
     const char * api_suffix = NULL;
     for (size_t i = 0; i < SIZE_OF_ARRAY(http_request_api_table); i++)
@@ -207,6 +231,9 @@ void HttpClient::uds_dgram_pack_handle_func(char * _uds_pack_ptr, int length, st
     assert_param(api_suffix);
 
     ryDbg("msg type %d => api[%s]!\n", udspack_header_ptr->msgtype, api_suffix);
+    ryDbg("post request [%s]!\n", udspack_header_ptr->m_data);
 
-    post_http_request(api_suffix, udspack_header_ptr->m_data, &client_addr);
+    post_http_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
+
+    free(uds_pack_ptr);
 }

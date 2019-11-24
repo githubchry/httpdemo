@@ -17,7 +17,7 @@
 
 void login_handler(struct evhttp_request *req, void *arg)
 {
-    printf("got connection \n");
+    ("got connection \n");
 
     char request_data[4096] = {0};
 
@@ -25,7 +25,7 @@ void login_handler(struct evhttp_request *req, void *arg)
     size_t post_size = EVBUFFER_LENGTH(req->input_buffer);
     char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);
     memcpy(request_data, post_data, post_size);
-    printf("post_data = [%s]\nlen =%ld\n", post_data, post_size);
+    ryDbg("post_data = [%s]\nlen =%ld\n", post_data, post_size);
 
     //根据协议解析json数据
     /*
@@ -52,9 +52,9 @@ void login_handler(struct evhttp_request *req, void *arg)
     cJSON *isDriver_obj = cJSON_GetObjectItem(root, "driver");
     strcpy(isDriver, isDriver_obj->valuestring);
 
-    printf("username = %s, password = %s, isDriver = %s\n", username, password, isDriver);
+    ryDbg("username = %s, password = %s, isDriver = %s\n", username, password, isDriver);
     cJSON_Delete(root);
-    printf("----\n");
+    ryDbg("----\n");
 
     //查询数据库 得到查询结果
 
