@@ -47,7 +47,7 @@ class HttpClient
 private:
     UdsServer *udsServer = nullptr;
     static void uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int length, spin_mutex *sm_ptr);
-
+    static void post_http_request(const char *api_suffix, const char *request_data, struct sockaddr_un *client_addr, int filefd);
 public:
     HttpClient(/* args */);
     void start();

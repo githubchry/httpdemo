@@ -6,13 +6,16 @@
 #include <curl/curl.h>
 #include <sys/un.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+
+#include <fcntl.h> //open
 
 #define THREAD_POOL_SIZE        4
 #define REQUEST_ADDR_MAX_NUM    5
 #define UDS_DGRAM_BUFFER_SIZE   1024
 #define RESPONSE_DATA_LEN       1024
 
-#define UDS_DGRAM_SERVER_PATH  "/home/chry/codes/httpdemo/build/uds-dgram-server"
+#define UDS_DGRAM_SERVER_PATH  "uds-dgram-server"
 #define UDS_DGRAM_BUFFER_SIZE  1024
 
 #define SERVER_ADDR    "127.0.0.1"
@@ -82,8 +85,59 @@ static size_t deal_response(void *ptr, size_t n, size_t m, void *arg)
     
     return count;
 }
+static void upload_request(const char *api_suffix)
+{
+    ryDbg("\n");
+    const char * path = "uploadfile.jpg";
+    struct stat st;
+    if (stat(path, &st) < 0)
+    {
+        ryErr("stat %s failed!\n", path);
+        return;
+    }
 
-static void post_http_request(const char *api_suffix, const char *request_data, struct sockaddr_un *client_addr, int filefd)
+    unsigned long filesize = st.st_size;
+
+    FILE *fp = NULL;
+    fp = fopen(path, "r");
+    if (NULL == fp)
+    {
+        ryErr("open file_fd failed!\n");
+        return;
+    }
+
+    struct curl_slist *headers = NULL;
+    char header[128] = "";
+
+    snprintf(header, sizeof(header), "File name: __%s", path);
+    headers = curl_slist_append(headers, header);
+    snprintf(header, sizeof(header), "File size: %lu", filesize);
+    headers = curl_slist_append(headers, header);
+
+    //初始化curl句柄
+    CURL* curl = curl_easy_init();
+    //设置curl url
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:7777/upload");
+
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_PUT, 1L);
+    curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, filesize);
+
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    //6 向服务器发送请求,等待服务器的响应 在超时时间内阻塞，直到服务器有返回
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        ryErr("curl_easy_perform err: %s\n", curl_easy_strerror(res));
+    }
+
+    curl_easy_cleanup(curl);
+    curl_slist_free_all(headers);
+
+}
+void HttpClient::post_http_request(const char *api_suffix, const char *request_data, struct sockaddr_un *client_addr, int filefd)
 {
     //初始化curl句柄
     CURL* curl = curl_easy_init();
@@ -102,6 +156,7 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
     //3 添加post数据
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_data);
 
+
     //4 设定一个处理服务器响应的回调函数
     //此函数读取libcurl发送数据后的返回信息，如果不设置此函数，那么返回值将会输出到控制台，影响程序性能
     //这个设置的回调函数的调用是在每次socket接收到数据之后，并不是socket接收了所有的数据，然后才调用设定的回调函数
@@ -115,7 +170,7 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
 
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2);  // 设置连接超时
-    
+
     char http_request_url[128];
 
     //警惕： 存在业务冲突 如果要向多个地址发出request 那就有多个response 以哪个为准？一个fd被写入多次怎么办？
@@ -137,7 +192,7 @@ static void post_http_request(const char *api_suffix, const char *request_data, 
         //6 向服务器发送请求,等待服务器的响应 在超时时间内阻塞，直到服务器有返回
         CURLcode res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            printf("curl_easy_perform err %d\n", res);
+            ryErr("curl_easy_perform err: %s\n", curl_easy_strerror(res));
             continue;
         }
 
@@ -214,8 +269,10 @@ void HttpClient::uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int le
     ryDbg("msg_ptr->msg_iov[0].iov_len [%ld]!\n", msg_ptr->msg_iov[0].iov_len);
     memcpy(uds_pack_ptr, msg_ptr->msg_iov[0].iov_base, msg_ptr->msg_iov[0].iov_len);
 
-    sm_ptr->unlock(); //udsserver监听数据前加锁 这里数据拷贝完毕再解锁 让udsserver处理其他事件
+    //udsserver监听数据前加锁 这里数据拷贝完毕再解锁 让udsserver处理其他事件
+    sm_ptr->unlock();
 
+    //
     uds_pack_header_t *udspack_header_ptr = (uds_pack_header_t *)uds_pack_ptr;
 
     ryDbg("uds handle msg type %d from [%s], ancillary fd = [%d]!\n", udspack_header_ptr->msgtype, client_addr.sun_path, file_fd);
@@ -234,7 +291,15 @@ void HttpClient::uds_dgram_pack_handle_func(const struct msghdr *msg_ptr, int le
     ryDbg("msg type %d => api[%s]!\n", udspack_header_ptr->msgtype, api_suffix);
     ryDbg("post request [%s]!\n", udspack_header_ptr->m_data);
 
-    post_http_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
+    if(___test_UPLOAD_FILE_SMALL == udspack_header_ptr->msgtype)
+    {
+        upload_request(api_suffix);
+    }
+    else
+    {
+        post_http_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
+    }
+    
     //put_file_request(api_suffix, udspack_header_ptr->m_data, &client_addr, file_fd);
 
     free(uds_pack_ptr);

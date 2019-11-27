@@ -149,17 +149,47 @@ void big_file_handler(struct evhttp_request *req, void *arg)
 void recv_file_handler(struct evhttp_request *req, void *arg)
 {
     // 解析http协议头 从里面获取文件的名称和大小  然后保存到本地
-    struct evkeyvalq *headers;
+    struct evkeyvalq *headers = evhttp_request_get_input_headers(req);
     struct evkeyval *header;
 
-    headers = evhttp_request_get_input_headers(req);
+    char file_name[128] = { 0 };
+    int file_size = -1;
+    
     for (header = headers->tqh_first; header;
          header = header->next.tqe_next)
     {
+        if (0 == strcmp(header->key, "File name"))
+        {
+            strcpy(file_name, header->value);
+        }
+        else if (0 == strcmp(header->key, "File size"))
+        {
+            file_size = atoi(header->value);
+        }
+        
+        
         ryDbg("  %s: %s\n", header->key, header->value);
     }
 
-    char request_data[4096] = {0};
+    //获取POST方法的数据
+    unsigned int post_size = EVBUFFER_LENGTH(req->input_buffer);
+    char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);
+
+    ryDbg("file name [%s], size %d post_size %lu\n", file_name, file_size, post_size);
+
+    FILE *fp = NULL;
+    fp = fopen(file_name, "wb");
+    if (NULL == fp)
+    {
+        ryErr("open % failed!\n");
+        return;
+    }
+    fwrite(post_data, 1, post_size, fp);
+
+    fclose(fp); fp = NULL;
+    //struct curl_slist *headers = NULL;
+    //char header[128] = "";
+
 
     // 响应给客户端
 

@@ -4,7 +4,7 @@
 #include <atomic>
 #include <sys/un.h>
 
-// 自旋锁 推荐多核多线程中使用 效率比普通锁更快
+// 自旋锁 要求在多核多线程中使用 效率比普通锁更快
 // 其实使用C++11自带std::mutex互斥量就可以，这里纯粹为了炫技
 class spin_mutex
 {
