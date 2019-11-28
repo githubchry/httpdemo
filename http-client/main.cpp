@@ -117,12 +117,51 @@ void send_small_file_handler(struct evhttp_request *req, void *arg)
     evbuffer_free(buf);
 }
 
+struct chunk_req_state
+{
+    struct event_base *base;
+    struct evhttp_request *req;
+    FILE *fp;
+    char *seg_ptr;
+    int seg_len;
+};
+
+static void
+http_chunked_trickle_cb(evutil_socket_t fd, short events, void *arg)
+{
+    struct evbuffer *evb = evbuffer_new();
+    struct chunk_req_state *state = (chunk_req_state*)arg;
+    struct timeval when = {0, 0};
+
+    int ret = fread(state->seg_ptr, 1, state->seg_len, state->fp);
+    ryErr("%d\n", ret);
+    if (ret > 0)
+    {
+        evbuffer_add(evb, state->seg_ptr, ret);
+        evhttp_send_reply_chunk(state->req, evb);
+        evbuffer_free(evb);
+
+        event_base_once(state->base, -1, EV_TIMEOUT,
+                        http_chunked_trickle_cb, state, &when);
+    }
+    else
+    {
+        evbuffer_free(evb);
+        evhttp_send_reply_end(state->req);
+
+        free(state->seg_ptr);
+
+        fclose(state->fp);
+
+        free(state);
+    }
+}
 //*
 // https://www.jianshu.com/p/5111cfb4b137
 //	video/mpeg4
 void send_big_file_handler(struct evhttp_request *req, void *arg)
 {
-    //响应给客户端
+    struct chunk_req_state *state = (struct chunk_req_state *)malloc(sizeof(struct chunk_req_state));
 
     //HTTP header
     evhttp_add_header(req->output_headers, "Server", __FILE__);
@@ -133,43 +172,31 @@ void send_big_file_handler(struct evhttp_request *req, void *arg)
     fp = fopen("chrome.mp4", "rb");
     if (NULL == fp)
     {
+        ryErr("can't not open %s\n", "chrome.mp4");
         evhttp_send_error(req, HTTP_NOTFOUND, "File was not found");
         return;
     }
+    ryErr(" \n");
 
     int seg_len = 1024;
     char *seg_ptr = (char*)malloc(seg_len);
     assert_param(seg_ptr);
 
-    //输出的内容
-    struct evbuffer *buf = evbuffer_new();
-    assert_param(buf);
-    
+    state->req = req;
+    state->base = (struct event_base *)arg;
+
+    state->fp = fp;
+    state->seg_len = seg_len;
+    state->seg_ptr = seg_ptr;
+
     //将封装好的evbuffer 发送给客户端
     evhttp_send_reply_start(req, HTTP_OK, "OK");
 
-    int ret = -1;
-    do
-    {
-        ret = fread(seg_ptr, 1, seg_len, fp);
-        if (ret > 0)
-        {
-            evbuffer_add(buf, seg_ptr, ret);
-            evhttp_send_reply_chunk(req, buf);
-            ryDbg("ret %d\n", ret);
-        }
-    } while (ret > 0);
+    /* but trickle it across several iterations to ensure we're not
+	 * assuming it comes all at once */
+    struct timeval when = {0, 0};
+    event_base_once(state->base, -1, EV_TIMEOUT, http_chunked_trickle_cb, state, &when);
     
-
-
-    evhttp_send_reply_end(req);
-
-    evbuffer_free(buf);
-
-    free(seg_ptr);
-
-    fclose(fp); fp = NULL;
-
 }
 //*/
 
@@ -202,13 +229,14 @@ void recv_file_handler(struct evhttp_request *req, void *arg)
     unsigned int post_size = EVBUFFER_LENGTH(req->input_buffer);
     char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);
 
-    ryDbg("file name [%s], size %d post_size %lu\n", file_name, file_size, post_size);
+    ryDbg("file name [%s], size %d post_size %u\n", file_name, file_size, post_size);
 
     FILE *fp = NULL;
     fp = fopen(file_name, "wb");
     if (NULL == fp)
     {
-        ryErr("open % failed!\n");
+        ryErr("open %s failed!\n", file_name);
+        evhttp_send_error(req, HTTP_EXPECTATIONFAILED, "File was not create!");
         return;
     }
     fwrite(post_data, 1, post_size, fp);
@@ -244,7 +272,7 @@ int main()
 
     server.addRequestHandle("/login", login_handler, nullptr);
     server.addRequestHandle("/1.jpg", send_small_file_handler, nullptr);
-    server.addRequestHandle("/chrome.mp4", send_big_file_handler, nullptr);
+    server.addRequestHandle("/chrome.mp4", send_big_file_handler, server.evbase);
     server.addRequestHandle("/upload", recv_file_handler, nullptr);
 
     server.start();

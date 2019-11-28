@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.4.1)
 project(http-demo)
 
 # 添加头文件目录和库目录
-include_directories("/home/chry/code/github/https/new-root/include")
-link_directories("/home/chry/code/github/https/new-root/lib")
+include_directories("/home/chry/codes/new-root/include")
+link_directories("/home/chry/codes/new-root/lib")
 
 set(CMAKE_EXE_LINKER_FLAGS "-pthread")
 set(CMAKE_CXX_STANDARD 11)
