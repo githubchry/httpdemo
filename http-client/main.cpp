@@ -116,35 +116,62 @@ void send_small_file_handler(struct evhttp_request *req, void *arg)
     close(fd);
     evbuffer_free(buf);
 }
-/*
+
+//*
 // https://www.jianshu.com/p/5111cfb4b137
 //	video/mpeg4
-void big_file_handler(struct evhttp_request *req, void *arg)
+void send_big_file_handler(struct evhttp_request *req, void *arg)
 {
-    char request_data[4096] = {0};
-
-    /响应给客户端
+    //响应给客户端
 
     //HTTP header
     evhttp_add_header(req->output_headers, "Server", __FILE__);
     evhttp_add_header(req->output_headers, "Content-Type", "text/plain; charset=UTF-8");
     evhttp_add_header(req->output_headers, "Connection", "close");
 
-    //输出的内容
-    struct evbuffer *buf;
-    buf = evbuffer_new();
-    evbuffer_add_printf(buf, "%s", response_str);
+    FILE *fp = NULL;
+    fp = fopen("chrome.mp4", "rb");
+    if (NULL == fp)
+    {
+        evhttp_send_error(req, HTTP_NOTFOUND, "File was not found");
+        return;
+    }
 
+    int seg_len = 1024;
+    char *seg_ptr = (char*)malloc(seg_len);
+    assert_param(seg_ptr);
+
+    //输出的内容
+    struct evbuffer *buf = evbuffer_new();
+    assert_param(buf);
+    
     //将封装好的evbuffer 发送给客户端
     evhttp_send_reply_start(req, HTTP_OK, "OK");
 
-    evhttp_send_reply_chunk_with_cb(req, buf);
+    int ret = -1;
+    do
+    {
+        ret = fread(seg_ptr, 1, seg_len, fp);
+        if (ret > 0)
+        {
+            evbuffer_add(buf, seg_ptr, ret);
+            evhttp_send_reply_chunk(req, buf);
+            ryDbg("ret %d\n", ret);
+        }
+    } while (ret > 0);
+    
+
 
     evhttp_send_reply_end(req);
 
     evbuffer_free(buf);
+
+    free(seg_ptr);
+
+    fclose(fp); fp = NULL;
+
 }
-*/
+//*/
 
 void recv_file_handler(struct evhttp_request *req, void *arg)
 {
@@ -199,6 +226,9 @@ void recv_file_handler(struct evhttp_request *req, void *arg)
     evhttp_add_header(req->output_headers, "Connection", "close");
 
     evhttp_send_reply(req, HTTP_OK, "OK", NULL);
+
+    ryDbg("200 ok\n");
+
 }
 
 int main()
@@ -206,15 +236,18 @@ int main()
     //http_request_module_init();
 
     HttpClient aaa;
-    HttpServer bbb("0.0.0.0", 7777);
-
-    bbb.addRequestHandle("/login", login_handler, nullptr);
-    bbb.addRequestHandle("/1.jpg", send_small_file_handler, nullptr);
-    //bbb.addRequestHandle("/chrome.mp4", big_file_handler, nullptr);
-    bbb.addRequestHandle("/upload", recv_file_handler, nullptr);
-
     aaa.start();
-    bbb.start();
+
+
+
+    HttpServer server("0.0.0.0", 7777);
+
+    server.addRequestHandle("/login", login_handler, nullptr);
+    server.addRequestHandle("/1.jpg", send_small_file_handler, nullptr);
+    server.addRequestHandle("/chrome.mp4", send_big_file_handler, nullptr);
+    server.addRequestHandle("/upload", recv_file_handler, nullptr);
+
+    server.start();
 
     sleep(100);
 

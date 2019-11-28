@@ -192,7 +192,7 @@ void HttpClient::post_http_request(const char *api_suffix, const char *request_d
         //6 向服务器发送请求,等待服务器的响应 在超时时间内阻塞，直到服务器有返回
         CURLcode res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            ryErr("curl_easy_perform err: %s\n", curl_easy_strerror(res));
+            ryErr("curl_easy_perform [%s]err: %s\n", http_request_url, curl_easy_strerror(res));
             continue;
         }
 
