@@ -91,6 +91,7 @@ void UdsServer::stop()
     assert_param(run_flag);
     assert_param(uds_listen_thread);
 
+    sm.unlock();
     run_flag = false;
     shutdown(sockfd,SHUT_RD);
 
