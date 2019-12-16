@@ -94,3 +94,10 @@ int HttpServer::addRequestHandle(const char *path, requestHandleFunc cb, void *c
 
     return evhttp_set_cb(httpd, path, cb, cb_arg);
 }
+
+int HttpServer::setDefaultHandle(requestHandleFunc cb, void *cb_arg)
+{
+    assert_param_return(nullptr == http_listen_thread, -2);
+    // 没有注册的URI会进入generic_cb回调
+    evhttp_set_gencb(httpd, cb, cb_arg);
+}

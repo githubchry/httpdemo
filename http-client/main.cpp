@@ -18,6 +18,17 @@
 void login_handler(struct evhttp_request *req, void *arg)
 {
     ("got connection \n");
+// 解析http协议头 从里面获取文件的名称和大小  然后保存到本地
+    struct evkeyvalq *headers = evhttp_request_get_input_headers(req);
+    struct evkeyval *header;
+
+    
+    for (header = headers->tqh_first; header;
+         header = header->next.tqe_next)
+    {
+        ryDbg("  %s: %s\n", header->key, header->value);
+    }
+
 
     char request_data[4096] = {0};
 
@@ -59,8 +70,14 @@ void login_handler(struct evhttp_request *req, void *arg)
     //查询数据库 得到查询结果
 
     //给客户端回复一个响应结果:{"result":"ok"}
+    bool sucess = false;
+    if (0 == strcmp(password, "123123"))
+    {
+        sucess = true;
+    }
+    
     cJSON *response_root = cJSON_CreateObject();
-    cJSON_AddStringToObject(response_root, "result", "ok");
+    cJSON_AddStringToObject(response_root, "result", sucess?"ok":"fail");
     char *response_str = cJSON_Print(response_root);
 
     /* 响应给客户端 */
@@ -119,15 +136,13 @@ void send_small_file_handler(struct evhttp_request *req, void *arg)
 
 struct chunk_req_state
 {
-    struct event_base *base;
     struct evhttp_request *req;
     FILE *fp;
     char *seg_ptr;
     int seg_len;
 };
 
-static void
-http_chunked_trickle_cb(evutil_socket_t fd, short events, void *arg)
+static void http_chunked_trickle_cb(evutil_socket_t fd, short events, void *arg)
 {
     struct evbuffer *evb = evbuffer_new();
     struct chunk_req_state *state = (chunk_req_state*)arg;
@@ -141,7 +156,7 @@ http_chunked_trickle_cb(evutil_socket_t fd, short events, void *arg)
         evhttp_send_reply_chunk(state->req, evb);
         evbuffer_free(evb);
 
-        event_base_once(state->base, -1, EV_TIMEOUT,
+        event_base_once(evhttp_connection_get_base(state->req->evcon), -1, EV_TIMEOUT,
                         http_chunked_trickle_cb, state, &when);
     }
     else
@@ -183,7 +198,6 @@ void send_big_file_handler(struct evhttp_request *req, void *arg)
     assert_param(seg_ptr);
 
     state->req = req;
-    state->base = (struct event_base *)arg;
 
     state->fp = fp;
     state->seg_len = seg_len;
@@ -195,10 +209,11 @@ void send_big_file_handler(struct evhttp_request *req, void *arg)
     /* but trickle it across several iterations to ensure we're not
 	 * assuming it comes all at once */
     struct timeval when = {0, 0};
-    event_base_once(state->base, -1, EV_TIMEOUT, http_chunked_trickle_cb, state, &when);
+    event_base_once(evhttp_connection_get_base(req->evcon), -1, EV_TIMEOUT, http_chunked_trickle_cb, state, &when);
     
 }
 //*/
+
 
 void recv_file_handler(struct evhttp_request *req, void *arg)
 {
@@ -272,12 +287,16 @@ int main()
 
     server.addRequestHandle("/login", login_handler, nullptr);
     server.addRequestHandle("/1.jpg", send_small_file_handler, nullptr);
-    server.addRequestHandle("/chrome.mp4", send_big_file_handler, server.evbase);
+    server.addRequestHandle("/chrome.mp4", send_big_file_handler, nullptr);
     server.addRequestHandle("/upload", recv_file_handler, nullptr);
 
     server.start();
 
-    sleep(100);
+    while (1)
+    {
+        sleep(100);
+    }
+    
 
 
     return 0;
